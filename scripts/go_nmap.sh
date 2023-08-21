@@ -544,8 +544,8 @@ recon() {
 
                                 # Waits 1 second for user's input - POSIX read -t
                                 #reconCommand="$(sh -c '{ { sleep 1; kill -sINT $$; } & }; exec head -n 1')"
-                                read -t 1 reconCommand
-                                count=$((count + 1))
+                                read -t 2 reconCommand
+                                count=$((count + 2))
                                 [ -n "${reconCommand}" ] && break
                         done
                         if expr "${reconCommand}" : '^\([Aa]ll\)$' >/dev/null || [ -z "${reconCommand}" ]; then
@@ -589,6 +589,19 @@ reconRecommend() {
                 ports="${commonPorts}"
                 file="$(grep "open" "nmap/Script_${HOST}.nmap" | grep -v "#")"
 
+        fi
+
+        # FTP recon
+        if echo "${file}" | grep -q "21/tcp"; then
+                printf "${NC}\n"
+                printf "${YELLOW}FTP Recon:\n"
+                printf "${NC}\n"
+                if type seclists >/dev/null 2>&1; then
+                        cat /usr/share/seclists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt /usr/share/seclists/Passwords/Common-Credentials/top-passwords-shortlist.txt | sort | uniq > /tmp/go_nmap_merged_pass.txt
+                        echo "medusa -h ${HOST} -U /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /tmp/go_nmap_merged_pass.txt -f -t 6 -M ftp | tee \"recon/ftp_enum_${HOST}.txt\" | tail -n 10"
+                else
+                        printf "${RED}[ERROR] seclists is not available at /usr/share ${NC}"
+                fi
         fi
 
         # SMTP recon
@@ -749,6 +762,7 @@ runRecon() {
                         printf "${NC}\n"
                         printf "${YELLOW}Starting ${currentScan} scan\n"
                         printf "${NC}\n"
+                        printf "${line}"
                         eval "${line}"
                         printf "${NC}\n"
                         printf "${YELLOW}Finished ${currentScan} scan\n"
@@ -813,11 +827,11 @@ main() {
                 recon "${HOST}"
                 ;;
         [Aa]ll)
-                #portScan "${HOST}"
-                #scriptScan "${HOST}"
-                #fullScan "${HOST}"
-                #UDPScan "${HOST}"
-                #vulnsScan "${HOST}"
+                portScan "${HOST}"
+                scriptScan "${HOST}"
+                fullScan "${HOST}"
+                UDPScan "${HOST}"
+                vulnsScan "${HOST}"
                 recon "${HOST}"
                 ;;
         esac
@@ -840,7 +854,7 @@ fi
 # Ensure selected scan type is among available choices, then run the selected scan
 if ! case "${TYPE}" in [Nn]etwork | [Pp]ort | [Ss]cript | [Ff]ull | UDP | udp | [Vv]ulns | [Rr]econ | [Aa]ll) false ;; esac then
         mkdir -p "${OUTPUTDIR}" && cd "${OUTPUTDIR}" && mkdir -p nmap/ || usage
-        main | tee "nmapAutomator_${HOST}_${TYPE}.txt"
+        main | tee "go_nmap_${HOST}_${TYPE}.txt"
 else
         printf "${RED}\n"
         printf "${RED}Invalid Type!\n"
