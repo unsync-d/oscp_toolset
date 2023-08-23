@@ -637,19 +637,32 @@ reconRecommend() {
                                 port="$(echo "${line}" | cut -d "/" -f 1)"
                                 if echo "${line}" | grep -q ssl/http; then
                                         urlType='https://'
+                                else
+                                        urlType='http://'
+                                fi
+
+                                if type seclists >/dev/null 2>&1; then
+                                        if type feroxbuster >/dev/null 2>&1; then
+                                                extensions="$(echo 'index' >./index && ffuf -s -w ./index:FUZZ -mc '200,204,301,302,307' -e '.asp,.aspx,.html,.jsp,.php' -u "${urlType}${HOST}:${port}/FUZZ" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
+                                                echo "feroxbuster -k -u ${urlType}${HOST}:${port} -x '${extensions}' -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt | tee \"recon/feroxb_${HOST}_${port}.txt\""
+                                        elif type ffuf >/dev/null 2>&1; then
+                                                extensions="$(echo 'index' >./index && ffuf -s -w ./index:FUZZ -mc '200,204,301,302,307' -e '.asp,.aspx,.html,.jsp,.php' -u "${urlType}${HOST}:${port}/FUZZ" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
+                                                echo "ffuf -ic -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -e '${extensions}' -u \"${urlType}${HOST}:${port}/FUZZ\" | tee \"recon/ffuf_${HOST}_${port}.txt\""
+                                        else
+                                                extensions="$(echo 'index' >./index && gobuster dir -w ./index -t 30 -qnkx '.asp,.aspx,.html,.jsp,.php' -s '200,302' -u "${urlType}${HOST}:${port}" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
+                                                echo "gobuster dir -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -s '200,204,301,302,307' -t 30 -ekx '${extensions}' -u \"${urlType}${HOST}:${port}\" -o \"recon/gobuster_${HOST}_${port}.txt\""
+                                        fi
+                                else
+                                        printf "${RED}[ERROR] seclists is not available at /usr/share ${NC}"
+                                fi
+
+                                if echo "${line}" | grep -q ssl/http; then
                                         echo "sslscan \"${HOST}\" | tee \"recon/sslscan_${HOST}_${port}.txt\""
                                         echo "nikto -host \"${urlType}${HOST}:${port}\" -ssl | tee \"recon/nikto_${HOST}_${port}.txt\""
                                 else
-                                        urlType='http://'
                                         echo "nikto -host \"${urlType}${HOST}:${port}\" | tee \"recon/nikto_${HOST}_${port}.txt\""
                                 fi
-                                if type ffuf >/dev/null 2>&1; then
-                                        extensions="$(echo 'index' >./index && ffuf -s -w ./index:FUZZ -mc '200,302' -e '.asp,.aspx,.html,.jsp,.php' -u "${urlType}${HOST}:${port}/FUZZ" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
-                                        echo "ffuf -ic -w /usr/share/wordlists/dirb/common.txt -e '${extensions}' -u \"${urlType}${HOST}:${port}/FUZZ\" | tee \"recon/ffuf_${HOST}_${port}.txt\""
-                                else
-                                        extensions="$(echo 'index' >./index && gobuster dir -w ./index -t 30 -qnkx '.asp,.aspx,.html,.jsp,.php' -s '200,302' -u "${urlType}${HOST}:${port}" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
-                                        echo "gobuster dir -w /usr/share/wordlists/dirb/common.txt -t 30 -ekx '${extensions}' -u \"${urlType}${HOST}:${port}\" -o \"recon/gobuster_${HOST}_${port}.txt\""
-                                fi
+
                                 echo
                         fi
                 done
@@ -762,7 +775,7 @@ runRecon() {
                         printf "${NC}\n"
                         printf "${YELLOW}Starting ${currentScan} scan\n"
                         printf "${NC}\n"
-                        printf "${line}"
+                        printf "\n\n\n\n\n\nTHIS: ${line}\n\n\n\n\n"
                         eval "${line}"
                         printf "${NC}\n"
                         printf "${YELLOW}Finished ${currentScan} scan\n"
